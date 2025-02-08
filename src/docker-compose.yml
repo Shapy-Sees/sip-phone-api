@@ -1,0 +1,35 @@
+# src/docker-compose.yml
+version: '3.8'
+
+services:
+  sip_phone:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${API_PORT:-8000}:8000"  # REST API
+      - "${WS_PORT:-8001}:8001"   # WebSocket
+      - "${SIP_PORT:-5060}:5060"  # SIP
+      - "${RTP_PORT_MIN:-10000}-${RTP_PORT_MAX:-20000}:${RTP_PORT_MIN:-10000}-${RTP_PORT_MAX:-20000}/udp"  # RTP
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/var/log/sip_phone
+      - ./src:/app/src  # For development
+    environment:
+      - CONFIG_PATH=/app/config/config.yml
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - API_HOST=0.0.0.0
+      - API_PORT=${API_PORT:-8000}
+      - WS_PORT=${WS_PORT:-8001}
+      - SIP_PORT=${SIP_PORT:-5060}
+      - RTP_PORT_MIN=${RTP_PORT_MIN:-10000}
+      - RTP_PORT_MAX=${RTP_PORT_MAX:-20000}
+    restart: unless-stopped
+    networks:
+      - sip_network
+    cap_add:
+      - NET_ADMIN  # Required for RTP ports
+
+networks:
+  sip_network:
+    driver: bridge

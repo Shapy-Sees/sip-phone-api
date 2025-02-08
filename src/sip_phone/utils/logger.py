@@ -1,6 +1,6 @@
-# src/dahdi_phone/utils/logger.py
+# src/sip_phone/utils/logger.py
 """
-Centralized logging configuration for the DAHDI Phone API.
+Centralized logging configuration for the SIP Phone API.
 Provides consistent, configurable logging across all modules with support for
 different output formats, log levels, and destinations.
 """
@@ -48,9 +48,9 @@ class LoggerConfig:
         self.include_timestamp = include_timestamp
         self.include_caller_info = include_caller_info
 
-class DAHDILogger:
+class SIPLogger:
     """
-    Central logging facility for DAHDI Phone API.
+    Central logging facility for SIP Phone API.
     Provides structured logging with configurable outputs and formats.
     """
     _instance = None
@@ -213,7 +213,7 @@ def log_function_call(level: str = "DEBUG") -> Callable:
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            logger = DAHDILogger().get_logger(func.__module__)
+            logger = SIPLogger().get_logger(func.__module__)
             log_level = getattr(logging, level.upper())
             
             # Log function entry
@@ -248,9 +248,9 @@ def log_function_call(level: str = "DEBUG") -> Callable:
 logger_config = LoggerConfig(
     level="DEBUG",
     format="json",
-    output_file="/var/log/dahdi_phone/api.log"
+    output_file="/var/log/sip_phone/api.log"
 )
-logger = DAHDILogger()
+logger = SIPLogger()
 logger.configure(logger_config)
 
 # Get a logger instance

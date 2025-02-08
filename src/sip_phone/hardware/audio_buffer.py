@@ -1,6 +1,6 @@
-# src/dahdi_phone/hardware/audio_buffer.py
+# src/sip_phone/hardware/audio_buffer.py
 """
-Audio buffer implementation for DAHDI phone system.
+Audio buffer implementation for SIP phone system.
 Provides thread-safe circular buffer for audio data with overflow protection,
 supporting both blocking and non-blocking operations. Includes comprehensive
 logging and monitoring capabilities.
@@ -11,10 +11,10 @@ import collections
 from typing import Optional, Tuple
 import numpy as np
 import logging
-from ..utils.logger import DAHDILogger, log_function_call
+from ..utils.logger import SIPLogger, log_function_call
 
 # Configure module logger
-logger = DAHDILogger().get_logger(__name__)
+logger = SIPLogger().get_logger(__name__)
 
 class AudioBufferError(Exception):
     """Custom exception for audio buffer operations"""
