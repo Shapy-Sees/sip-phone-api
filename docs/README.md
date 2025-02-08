@@ -1,78 +1,48 @@
 # SIP Phone API
 
-A Python-based SIP server and API that provides a clean interface to analog telephones connected through a Grandstream HT802 ATA (Analog Telephone Adapter). This service enables high-level control and monitoring of analog phone lines for smart home integration, including real-time audio streaming.
+A Python-based SIP server designed for Raspberry Pi that provides a clean interface to analog telephones connected through a Grandstream HT802 ATA (Analog Telephone Adapter). This service enables integration with smart home systems by providing real-time audio streaming via WebSocket and DTMF event delivery via webhooks.
 
 ## Core Features
 
-- Simple SIP server implementation for HT802 connection
+- SIP server implementation for HT802 connection
 - Real-time phone state monitoring
-- Bidirectional audio streaming
-- Audio format conversion and processing
-- DTMF tone detection
-- Ring control
-- WebSocket-based event system
-- Comprehensive error handling and diagnostics
+- DTMF webhook dispatch with retry mechanism
+- Direct audio streaming via WebSocket
+- Simple REST API for phone control
 - Docker containerized deployment
+- Comprehensive logging and diagnostics
 
 ## Overview
 
-This API acts as a bridge between an analog telephone (connected via Grandstream HT802) and a smart home system. It:
+This API acts as a bridge between an analog telephone and your smart home system. It:
 - Detects when the phone is picked up or put down
-- Captures DTMF tones (button presses)
-- Streams audio from the phone to clients
-- Streams audio from clients to the phone
+- Sends DTMF tones (button presses) via webhooks
+- Streams audio to your operator server via WebSocket
 - Can trigger the phone to ring
-- Streams all events to connected clients via WebSocket
-
-The API is designed to be a component in a larger smart home system where other services can:
-- Monitor phone state
-- React to button presses
-- Process voice commands in real-time
-- Provide audio responses to the phone
-- Trigger rings for notifications
+- Provides real-time state updates
 
 ## Hardware Requirements
 
 ### Required Hardware
+- Raspberry Pi (3 or newer recommended)
 - Grandstream HT802 ATA (Analog Telephone Adapter)
 - Standard analog telephone
-- Network connectivity between server and HT802
-- Audio processing capabilities on server
+- Network connectivity between all components
 
 ### System Requirements
-- Linux/Windows/MacOS
+- Raspbian OS / Debian
 - Python 3.9+
 - Docker Engine 20.10+ (optional)
-- 2GB RAM minimum (for audio processing)
-- 10GB available disk space
-- Low-latency network connection
+- 512MB RAM minimum
+- 5GB available disk space
+- Stable network connection
 
 ### Network Requirements
 - Static IP for HT802
+- Static IP for Raspberry Pi
 - SIP port access (default: 5060)
-- RTP ports for audio streaming (default: 10000-20000)
-- WebSocket port access (default: 8001)
-- REST API port access (default: 8000)
-
-## Audio Specifications
-
-### Input Audio
-- Sample Rate: 8kHz (standard telephony)
-- Bit Depth: 16-bit
-- Channels: Mono
-- Codec: G.711 (μ-law or A-law)
-
-### Output Audio
-- Sample Rate: 8kHz
-- Bit Depth: 16-bit
-- Channels: Mono
-- Codec: G.711 (μ-law or A-law)
-
-### Audio Streaming
-- Protocol: RTP over UDP
-- Buffer Size: 20ms frames
-- Latency Target: <100ms
-- Format: Raw PCM or encoded G.711
+- Webhook endpoint accessibility
+- WebSocket connectivity to operator server
 
 ## Getting Started
 
@@ -91,7 +61,7 @@ The API is designed to be a component in a larger smart home system where other 
    - Disable external SIP registration
    - Set local SIP server (this API) as primary server
    - Configure authentication if needed
-   - Set audio codec preferences to G.711
+   - Set audio codec to G.711
 
 ### Development Setup
 
@@ -117,77 +87,6 @@ docker-compose logs -f
 curl http://localhost:8000/status  # Should return phone line status
 ```
 
-## API Usage
-
-### REST Endpoints
-
-#### Get Status
-```
-GET /status
-```
-Returns current phone status including off-hook state, last DTMF digit, and audio streaming status.
-
-#### Ring Control
-```
-POST /ring
-```
-Triggers phone to ring with specified pattern.
-
-#### Audio Stream Control
-```
-POST /audio/start
-```
-Start audio streaming session.
-
-```
-POST /audio/stop
-```
-Stop audio streaming session.
-
-### WebSocket Events
-
-Connect to `ws://server:8001/ws` to receive real-time events:
-
-```javascript
-{
-  "type": "off_hook",
-  "timestamp": "2025-01-29T12:00:00Z"
-}
-```
-
-```javascript
-{
-  "type": "dtmf",
-  "digit": "3",
-  "timestamp": "2025-01-29T12:00:00Z"
-}
-```
-
-```javascript
-{
-  "type": "on_hook",
-  "timestamp": "2025-01-29T12:00:00Z"
-}
-```
-
-```javascript
-{
-  "type": "audio_start",
-  "stream_id": "abc123",
-  "timestamp": "2025-01-29T12:00:00Z"
-}
-```
-
-### Audio Streaming
-
-Audio streaming is handled through RTP:
-- Input stream: Phone audio is streamed to connected clients
-- Output stream: Client audio is streamed to phone
-- Each stream has unique identifiers
-- Clients can subscribe to streams via WebSocket
-- Audio data is streamed in configurable chunks
-- Support for both raw PCM and G.711 encoded audio
-
 ## Configuration
 
 ### Environment Variables
@@ -196,8 +95,8 @@ Audio streaming is handled through RTP:
 - `API_HOST`: REST API host address
 - `API_PORT`: REST API port (default: 8000)
 - `WS_PORT`: WebSocket port (default: 8001)
-- `RTP_PORT_MIN`: Minimum RTP port (default: 10000)
-- `RTP_PORT_MAX`: Maximum RTP port (default: 20000)
+- `WEBHOOK_URL`: DTMF webhook endpoint
+- `OPERATOR_WS_URL`: Operator WebSocket endpoint
 - `LOG_LEVEL`: Logging level
 
 ### Configuration File
@@ -208,7 +107,6 @@ Example configuration:
 server:
   host: "0.0.0.0"
   rest_port: 8000
-  websocket_port: 8001
   sip_port: 5060
 
 ht802:
@@ -218,56 +116,54 @@ ht802:
     username: "phone1"
     password: "secret"
 
-audio:
-  sample_rate: 8000
-  bit_depth: 16
-  channels: 1
-  codec: "PCMU"  # or "PCMA"
-  buffer_size: 320  # 20ms @ 8kHz/16-bit
-  rtp_ports:
-    min: 10000
-    max: 20000
+webhooks:
+  dtmf:
+    url: "https://your-operator-server/dtmf-webhook"
+    timeout_ms: 1000
+    retry_count: 3
+    retry_delay_ms: 500
+    auth_token: "secret"
+
+operator:
+  websocket_url: "wss://your-operator-server/audio"
+  auth_token: "secret"
 
 logging:
   level: "INFO"
   format: "json"
   output: "/var/log/sip_phone/api.log"
-  rotation: "1 day"
-  retention: "30 days"
 ```
 
-## Development Notes
+## API Usage
 
-### Debugging
+### REST Endpoints
 
-#### Logging System
-- Comprehensive logging throughout all components
-- Configurable log levels via config.yml
-- Structured logging with JSON format support
-- Rotated log files with retention policies
+#### Get Status
+```
+GET /status
+```
+Returns current phone status including off-hook state and connection status.
 
-#### Diagnostics
-- SIP message logging
-- Audio stream monitoring
-- Real-time state monitoring
-- DTMF detection verification
-- RTP statistics
-- WebSocket connection status
+#### Ring Control
+```
+POST /ring
+```
+Triggers phone to ring with specified pattern.
 
-#### Audio Testing Tools
-- Audio loopback testing
-- Stream latency measurement
-- Codec verification
-- Audio level monitoring
+For detailed architecture, design decisions, and technical specifications, please refer to the [Architecture Document](./docs/ARCHITECTURE.md).
 
-## Contributing
+## Development
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add or update tests
-5. Submit a pull request
+### Debug Mode
+Enable debug logging by setting:
+```bash
+export LOG_LEVEL=DEBUG
+```
 
+### Monitoring
+- Check logs: `docker-compose logs -f`
+- API status: `GET /health`
+- View metrics: `GET /metrics`
 
 ## Support
 
@@ -281,5 +177,3 @@ For support:
 - Grandstream for HT802 specifications
 - FastAPI framework developers
 - Python SIP library developers
-- WebSocket protocol developers
-- RTP protocol developers

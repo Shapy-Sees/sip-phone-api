@@ -1,35 +1,101 @@
-# src/docker-compose.yml
 version: '3.8'
 
 services:
-  sip_phone:
+  api:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+        VCS_REF: ${VCS_REF:-unknown}
+    image: sip-phone-api:latest
+    container_name: sip-phone-api
+    restart: unless-stopped
     ports:
-      - "${API_PORT:-8000}:8000"  # REST API
-      - "${WS_PORT:-8001}:8001"   # WebSocket
-      - "${SIP_PORT:-5060}:5060"  # SIP
-      - "${RTP_PORT_MIN:-10000}-${RTP_PORT_MAX:-20000}:${RTP_PORT_MIN:-10000}-${RTP_PORT_MAX:-20000}/udp"  # RTP
+      - "8000:8000"  # API
+      - "5060:5060/udp"  # SIP
     volumes:
       - ./config:/app/config:ro
-      - ./logs:/var/log/sip_phone
-      - ./src:/app/src  # For development
+      - ./logs:/app/logs
+      - ./data:/app/data
     environment:
-      - CONFIG_PATH=/app/config/config.yml
+      - TZ=UTC
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - API_HOST=0.0.0.0
-      - API_PORT=${API_PORT:-8000}
-      - WS_PORT=${WS_PORT:-8001}
-      - SIP_PORT=${SIP_PORT:-5060}
-      - RTP_PORT_MIN=${RTP_PORT_MIN:-10000}
-      - RTP_PORT_MAX=${RTP_PORT_MAX:-20000}
-    restart: unless-stopped
+      - HT802_PASSWORD=${HT802_PASSWORD}
+      - DTMF_WEBHOOK_URL=${DTMF_WEBHOOK_URL}
+      - DTMF_WEBHOOK_SECRET=${DTMF_WEBHOOK_SECRET}
+      - STATE_WEBHOOK_URL=${STATE_WEBHOOK_URL}
+      - STATE_WEBHOOK_SECRET=${STATE_WEBHOOK_SECRET}
+      - OPERATOR_URL=${OPERATOR_URL}
+      - OPERATOR_API_KEY=${OPERATOR_API_KEY}
+      - API_KEY_1=${API_KEY_1}
+      - API_KEY_2=${API_KEY_2}
     networks:
-      - sip_network
-    cap_add:
-      - NET_ADMIN  # Required for RTP ports
+      - sip-network
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/status/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: sip-phone-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - sip-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sip-phone-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - sip-network
+    depends_on:
+      - prometheus
 
 networks:
-  sip_network:
+  sip-network:
     driver: bridge
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+# Development overrides
+x-development:
+  api:
+    build:
+      target: development
+    environment:
+      - DEBUG=1
+      - MOCK_HARDWARE=true
+      - DEBUG_DTMF=true
+      - DEBUG_AUDIO=true
+    volumes:
+      - .:/app:ro  # Mount source code for development
+    command: ["python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "-m", "sip_phone"]
+    ports:
+      - "5678:5678"  # Debug port

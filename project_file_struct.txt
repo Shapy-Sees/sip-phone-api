@@ -1,0 +1,35 @@
+src/
+├── config/
+│   ├── default.yml
+│   └── config.yml
+├── sip_phone/
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── models.py
+│   │   ├── routes.py
+│   │   ├── server.py
+│   │   └── ws.py
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── sip.py
+│   │   ├── dtmf.py
+│   │   └── state.py
+│   ├── integrations/
+│   │   ├── __init__.py
+│   │   ├── webhooks.py
+│   │   └── operator.py
+│   ├── hardware/
+│   │   ├── __init__.py
+│   │   └── ht802.py
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── config.py
+│   │   ├── logger.py
+│   │   └── errors.py
+│   ├── __init__.py
+│   └── __main__.py
+├── Dockerfile
+├── requirements.txt
+├── .dockerignore
+├── .env
+└── docker-compose.yml

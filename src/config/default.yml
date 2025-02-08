@@ -1,0 +1,122 @@
+# Default configuration for SIP Phone API
+
+# Logging configuration
+logging:
+  level: INFO
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  handlers:
+    file:
+      enabled: true
+      path: logs/sip_phone.log
+      max_size: 10MB
+      backup_count: 5
+    console:
+      enabled: true
+      color: true
+
+# API server configuration
+api:
+  host: 0.0.0.0
+  port: 8000
+  debug: false
+  cors_origins:
+    - http://localhost:3000
+    - http://localhost:8080
+  request_timeout: 30
+  max_upload_size: 10MB
+
+# WebSocket configuration
+websocket:
+  ping_interval: 30
+  ping_timeout: 10
+  max_message_size: 1MB
+  compression: true
+
+# SIP configuration
+sip:
+  server: udp:127.0.0.1:5060
+  user_agent: SIPPhoneAPI/1.0
+  registration_timeout: 3600
+  retry_count: 3
+  retry_delay: 5
+
+# Audio configuration
+audio:
+  sample_rate: 8000
+  channels: 1
+  buffer_size: 320
+  codec: PCMU
+  dtmf:
+    detection_threshold: 0.5
+    min_duration: 40
+    max_gap: 100
+
+# Hardware configuration
+hardware:
+  ht802:
+    host: 192.168.1.100
+    port: 5060
+    username: admin
+    password: ${HT802_PASSWORD}  # Set in environment
+    polling_interval: 5
+    timeout: 10
+
+# Webhook configuration
+webhooks:
+  dtmf:
+    - id: main_dtmf
+      url: ${DTMF_WEBHOOK_URL}  # Set in environment
+      secret: ${DTMF_WEBHOOK_SECRET}  # Set in environment
+      events: ["*"]
+      timeout: 5
+      max_retries: 3
+      headers:
+        X-Source: sip-phone-api
+  state:
+    - id: main_state
+      url: ${STATE_WEBHOOK_URL}  # Set in environment
+      secret: ${STATE_WEBHOOK_SECRET}  # Set in environment
+      events: ["state_changed", "call_started", "call_ended"]
+      timeout: 5
+      max_retries: 3
+      headers:
+        X-Source: sip-phone-api
+
+# Operator server configuration
+operator:
+  url: ${OPERATOR_URL}  # Set in environment
+  api_key: ${OPERATOR_API_KEY}  # Set in environment
+  timeout: 10
+  max_retries: 3
+  connection_check_interval: 30
+
+# Event system configuration
+events:
+  queue_size: 1000
+  worker_threads: 4
+  retry_policy:
+    max_attempts: 3
+    backoff_factor: 2
+    initial_delay: 1
+
+# Security configuration
+security:
+  api_key_header: X-API-Key
+  allowed_api_keys:
+    - ${API_KEY_1}  # Set in environment
+    - ${API_KEY_2}  # Set in environment
+  rate_limit:
+    enabled: true
+    requests_per_minute: 60
+    burst_size: 10
+  ssl:
+    enabled: false
+    cert_file: certs/server.crt
+    key_file: certs/server.key
+
+# Development settings (overridden in production)
+development:
+  mock_hardware: false
+  debug_dtmf: true
+  debug_audio: true
+  profile_enabled: false

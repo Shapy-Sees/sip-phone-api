@@ -1,63 +1,72 @@
-# src/Dockerfile
-#"""
-#Main Dockerfile for SIP Phone API.
-#Provides multi-stage build with development and production configurations.
-#Includes all necessary dependencies and proper logging setup.
-#"""
+# Use Python 3.11 slim image as base
+FROM python:3.11-slim
 
-# Build stage
-FROM python:3.9-slim as builder
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create app directory
-WORKDIR /app
-
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip wheel --no-cache-dir --no-deps --wheel-dir /app/wheels -r requirements.txt
-
-# Final stage
-FROM python:3.9-slim
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    libpq5 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create app user
-RUN useradd -m appuser && \
-    mkdir -p /app /var/log/sip_phone && \
-    chown -R appuser:appuser /app /var/log/sip_phone
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Set working directory
 WORKDIR /app
 
-# Copy wheels from builder
-COPY --from=builder /app/wheels /wheels
-COPY --from=builder /app/requirements.txt .
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    libportaudio2 \
+    libportaudiocpp0 \
+    portaudio19-dev \
+    libsndfile1 \
+    libasound2-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
-RUN pip install --no-cache /wheels/*
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy configuration files
+COPY config/default.yml /app/config/default.yml
+COPY config/config.yml /app/config/config.yml
 
-# Set permissions
-RUN chown -R appuser:appuser /app
+# Copy source code
+COPY sip_phone /app/sip_phone
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/data
+
+# Create non-root user
+RUN useradd -m -u 1000 sipphone && \
+    chown -R sipphone:sipphone /app
 
 # Switch to non-root user
-USER appuser
+USER sipphone
 
-# Environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/app/bin:$PATH" \
-    PYTHONPATH="/app:$PYTHONPATH"
+# Expose ports
+EXPOSE 8000
 
-# Command to run
-CMD ["python", "-m", "sip_phone"]
+# Set entrypoint and default command
+ENTRYPOINT ["python", "-m"]
+CMD ["sip_phone"]
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/status/health || exit 1
+
+# Labels
+LABEL maintainer="Your Name <your.email@example.com>" \
+      version="1.0.0" \
+      description="SIP Phone API service" \
+      org.opencontainers.image.source="https://github.com/yourusername/sip-phone-api"
+
+# Build arguments (can be overridden at build time)
+ARG BUILD_DATE
+ARG VCS_REF
+
+# Additional labels using build arguments
+LABEL org.label-schema.build-date=$BUILD_DATE \
+      org.label-schema.vcs-ref=$VCS_REF \
+      org.label-schema.schema-version="1.0"
+
+# Volume for persistent data
+VOLUME ["/app/data", "/app/logs"]

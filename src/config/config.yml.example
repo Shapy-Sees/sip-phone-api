@@ -1,0 +1,72 @@
+# Environment-specific configuration for SIP Phone API
+# Copy this file to config.yml and customize for your environment
+
+# Override logging configuration
+logging:
+  level: DEBUG  # Set to INFO in production
+  handlers:
+    file:
+      path: /var/log/sip_phone.log  # Customize log path
+
+# Override API server configuration
+api:
+  host: 0.0.0.0
+  port: 8000
+  cors_origins:
+    - https://your-domain.com
+
+# SIP configuration
+sip:
+  server: udp:sip.your-provider.com:5060
+  registration_timeout: 3600
+
+# Hardware configuration
+hardware:
+  ht802:
+    host: 192.168.1.100  # Your HT802 IP address
+    port: 5060
+    username: admin
+    password: ${HT802_PASSWORD}  # Set in environment or .env file
+
+# Webhook endpoints
+webhooks:
+  dtmf:
+    - id: main_dtmf
+      url: ${DTMF_WEBHOOK_URL}  # e.g., https://your-server.com/webhooks/dtmf
+      secret: ${DTMF_WEBHOOK_SECRET}
+  state:
+    - id: main_state
+      url: ${STATE_WEBHOOK_URL}  # e.g., https://your-server.com/webhooks/state
+      secret: ${STATE_WEBHOOK_SECRET}
+
+# Operator server configuration
+operator:
+  url: ${OPERATOR_URL}  # e.g., https://operator.your-domain.com
+  api_key: ${OPERATOR_API_KEY}
+
+# Security configuration
+security:
+  allowed_api_keys:
+    - ${API_KEY_1}  # Your API keys
+    - ${API_KEY_2}
+  ssl:
+    enabled: true  # Enable in production
+    cert_file: /path/to/your/cert.crt
+    key_file: /path/to/your/key.key
+
+# Development settings
+development:
+  mock_hardware: false  # Set to true to use mock HT802
+  debug_dtmf: false    # Enable for DTMF debugging
+  debug_audio: false   # Enable for audio debugging
+
+# Required environment variables:
+# HT802_PASSWORD - Password for HT802 device
+# DTMF_WEBHOOK_URL - URL for DTMF webhook endpoint
+# DTMF_WEBHOOK_SECRET - Secret for DTMF webhook authentication
+# STATE_WEBHOOK_URL - URL for state webhook endpoint
+# STATE_WEBHOOK_SECRET - Secret for state webhook authentication
+# OPERATOR_URL - URL for operator server
+# OPERATOR_API_KEY - API key for operator server
+# API_KEY_1 - First allowed API key
+# API_KEY_2 - Second allowed API key (optional)

@@ -1,55 +1,116 @@
-# src/.dockerignore
-"""
-Docker ignore file to exclude unnecessary files from the build context.
-"""
-
 # Version control
 .git
 .gitignore
+.gitattributes
 
 # Python
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
+__pycache__/
 *.py[cod]
 *$py.class
-.pytest_cache
-.coverage
-htmlcov/
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Environment
+# Virtual environments
 .env
 .venv
 env/
 venv/
 ENV/
+env.bak/
+venv.bak/
 
 # IDE
-.idea
-.vscode
+.idea/
+.vscode/
 *.swp
 *.swo
+*~
+.project
+.pydevproject
+.settings
 
-# Logs
+# Testing
+.coverage
+.tox/
+.pytest_cache/
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Logs and data
 logs/
 *.log
+data/
+*.db
+*.sqlite3
 
-# Build
-*.egg-info/
-dist/
-build/
+# Documentation
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# Configuration
+config/config.yml
+.env
+*.pem
+*.key
+*.crt
 
 # Docker
 Dockerfile
-docker-compose.yml
-.dockerignore
+docker-compose*.yml
+.docker/
 
-# Documentation
-docs/
-*.md
+# Development tools
+.pre-commit-config.yaml
+mypy.ini
+setup.cfg
+tox.ini
+.flake8
+.pylintrc
 
-# Test
-tests/
-test/
+# Temporary files
+*.tmp
+*.temp
+*.bak
+.DS_Store
+Thumbs.db
+
+# Audio files
+*.wav
+*.mp3
+*.ogg
+*.flac
+
+# Build artifacts
+*.o
+*.ko
+*.obj
+*.elf
+*.bin
+
+# Example and template files
+*.example
+*.template
+*.sample
+
+# Editor backup files
+*~
+*.swp
+*.swo
