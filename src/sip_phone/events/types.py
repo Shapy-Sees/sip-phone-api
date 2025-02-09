@@ -5,41 +5,43 @@ These events represent various system occurrences that can be handled by event h
 """
 
 from enum import Enum
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Literal
 from pydantic import BaseModel, Field
 from datetime import datetime
+
+class CallState(str, Enum):
+    """
+    Enumeration of possible call states.
+    """
+    ON_HOOK = "on_hook"
+    OFF_HOOK = "off_hook"
+    RINGING = "ringing"
+    CONNECTING = "connecting"
+    ACTIVE = "active"
+    ENDED = "ended"
+    ERROR = "error"
 
 class EventType(str, Enum):
     """
     Enumeration of possible event types in the system.
     """
     # Call-related events
-    CALL_INITIATED = "call_initiated"
-    CALL_CONNECTED = "call_connected"
+    CALL_STARTED = "call_started"
     CALL_ENDED = "call_ended"
     CALL_FAILED = "call_failed"
+    CALL_CONNECTING = "call_connecting"
     
     # DTMF events
-    DTMF_DETECTED = "dtmf_detected"
-    DTMF_SENT = "dtmf_sent"
-    
-    # State change events
-    STATE_CHANGED = "state_changed"
+    DTMF = "dtmf"
     
     # Audio events
-    AUDIO_STARTED = "audio_started"
-    AUDIO_STOPPED = "audio_stopped"
+    AUDIO_DATA = "audio_data"
     AUDIO_ERROR = "audio_error"
+    AUDIO_LEVEL = "audio_level"
     
-    # WebSocket events
-    WS_CONNECTED = "ws_connected"
-    WS_DISCONNECTED = "ws_disconnected"
-    WS_ERROR = "ws_error"
-    
-    # Webhook events
-    WEBHOOK_RECEIVED = "webhook_received"
-    WEBHOOK_PROCESSED = "webhook_processed"
-    WEBHOOK_FAILED = "webhook_failed"
+    # State events
+    STATE_CHANGE = "state_change"
+    REGISTRATION = "registration"
     
     # System events
     SYSTEM_ERROR = "system_error"
@@ -50,9 +52,8 @@ class BaseEvent(BaseModel):
     """
     Base model for all events in the system.
     """
-    type: EventType
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
     event_id: str = Field(..., description="Unique identifier for the event")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 class CallEvent(BaseEvent):
@@ -68,28 +69,22 @@ class DTMFEvent(BaseEvent):
     """
     Event model for DTMF-related events.
     """
-    digits: str
+    type: Literal["dtmf"] = "dtmf"
+    digit: str
     call_id: str
-    duration: Optional[int] = None
-    confidence: Optional[float] = None
+    duration: int
+    sequence: int
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
-class StateEvent(BaseEvent):
+class PhoneEvent(BaseEvent):
     """
-    Event model for state change events.
+    Event model for phone-related events (calls, audio, state changes).
     """
-    previous_state: str
-    new_state: str
-    call_id: Optional[str] = None
-    reason: Optional[str] = None
-
-class AudioEvent(BaseEvent):
-    """
-    Event model for audio-related events.
-    """
-    stream_id: str
-    call_id: Optional[str] = None
-    error: Optional[str] = None
-    buffer_size: Optional[int] = None
+    type: Literal["call_started", "call_ended", "call_connecting", "audio_data", "audio_level", "registration"]
+    call_id: str
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    remote_uri: Optional[str] = None
+    data: Optional[bytes] = None  # For audio data
 
 class WebSocketEvent(BaseEvent):
     """
@@ -109,6 +104,16 @@ class WebhookEvent(BaseEvent):
     payload: Dict[str, Any]
     error: Optional[str] = None
 
+class StateEvent(BaseEvent):
+    """
+    Event model for state change events.
+    """
+    previous_state: CallState
+    new_state: CallState
+    call_id: Optional[str] = None
+    reason: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
 class SystemEvent(BaseEvent):
     """
     Event model for system-level events.
@@ -125,12 +130,12 @@ AsyncEventHandler = callable[[BaseEvent], Any]  # Returns a coroutine
 
 # Export all event types
 __all__ = [
+    "CallState",
     "EventType",
     "BaseEvent",
     "CallEvent",
     "DTMFEvent",
-    "StateEvent",
-    "AudioEvent",
+    "PhoneEvent",
     "WebSocketEvent",
     "WebhookEvent",
     "SystemEvent",

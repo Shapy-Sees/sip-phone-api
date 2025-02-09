@@ -1,37 +1,53 @@
 # src/sip_phone/events/handlers/webhook.py
 """
 This module implements the webhook event handler for the SIP Phone API.
-It handles dispatching events to configured webhook endpoints.
+It handles dispatching events to configured webhook endpoints with retry logic
+and delivery tracking.
 """
 
 import logging
-import aiohttp
-import json
-from typing import Dict, List, Optional
+import uuid
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 from ...utils.config import Config
+from ...utils.logger import get_logger
 from ..types import (
     BaseEvent,
     EventType,
     CallEvent,
     DTMFEvent,
-    StateEvent
+    StateEvent,
+    SystemEvent
+)
+from ...integrations.webhooks.delivery import (
+    WebhookDeliveryManager,
+    RetryStrategy,
+    init_delivery_manager
 )
 
-# Configure logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class WebhookHandler:
     """
-    Handles dispatching events to configured webhook endpoints.
-    Supports multiple webhook configurations with event filtering.
+    Handles dispatching events to configured webhook endpoints with retry support.
+    Supports multiple webhook configurations with event filtering and authentication.
     """
     
     def __init__(self, config: Config):
         self.config = config
         self.webhook_configs = self._load_webhook_configs()
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.delivery_manager: Optional[WebhookDeliveryManager] = None
+        
+        # Configure retry strategy from config
+        retry_config = config.get("webhooks", {}).get("retry", {})
+        self.retry_strategy = RetryStrategy(
+            max_attempts=retry_config.get("max_attempts", 5),
+            initial_delay=retry_config.get("initial_delay", 1.0),
+            max_delay=retry_config.get("max_delay", 300.0),
+            backoff_factor=retry_config.get("backoff_factor", 2.0),
+            jitter=retry_config.get("jitter", True)
+        )
     
     def _load_webhook_configs(self) -> List[Dict]:
         """
@@ -44,19 +60,20 @@ class WebhookHandler:
     
     async def start(self):
         """
-        Initialize the webhook handler.
+        Initialize the webhook handler and delivery manager.
         """
-        if not self.session:
-            self.session = aiohttp.ClientSession()
+        self.delivery_manager = init_delivery_manager(
+            retry_strategy=self.retry_strategy
+        )
+        await self.delivery_manager.start()
         logger.info("Webhook handler started")
     
     async def stop(self):
         """
         Cleanup resources used by the webhook handler.
         """
-        if self.session:
-            await self.session.close()
-            self.session = None
+        if self.delivery_manager:
+            await self.delivery_manager.stop()
         logger.info("Webhook handler stopped")
     
     def _should_forward_event(self, event: BaseEvent, webhook_config: Dict) -> bool:
@@ -79,9 +96,14 @@ class WebhookHandler:
         if "*" in allowed_events:
             return True
             
-        return str(event.type) in allowed_events
+        # Check event type and any subtypes
+        event_type = str(event.type)
+        return any(
+            event_type.startswith(allowed) 
+            for allowed in allowed_events
+        )
     
-    def _prepare_payload(self, event: BaseEvent, webhook_config: Dict) -> Dict:
+    def _prepare_payload(self, event: BaseEvent, webhook_config: Dict) -> Dict[str, Any]:
         """
         Prepare the webhook payload from an event.
         
@@ -110,29 +132,37 @@ class WebhookHandler:
             })
         elif isinstance(event, DTMFEvent):
             payload.update({
-                "digits": event.digits,
+                "digit": event.digit,
                 "call_id": event.call_id,
                 "duration": event.duration,
-                "confidence": event.confidence
+                "sequence": event.sequence
             })
         elif isinstance(event, StateEvent):
             payload.update({
-                "previous_state": event.previous_state,
-                "new_state": event.new_state,
+                "previous_state": str(event.previous_state),
+                "new_state": str(event.new_state),
                 "call_id": event.call_id,
                 "reason": event.reason
+            })
+        elif isinstance(event, SystemEvent):
+            payload.update({
+                "level": event.level,
+                "component": event.component,
+                "message": event.message,
+                "error": event.error,
+                "stack_trace": event.stack_trace
             })
         
         return payload
     
     async def handle_event(self, event: BaseEvent) -> None:
         """
-        Handle an event by forwarding it to configured webhooks.
+        Handle an event by forwarding it to configured webhooks with retry support.
         
         Args:
             event: The event to handle
         """
-        if not self.session:
+        if not self.delivery_manager:
             logger.error("Webhook handler not started")
             return
             
@@ -151,28 +181,35 @@ class WebhookHandler:
                 elif auth["type"] == "basic":
                     headers["Authorization"] = f"Basic {auth['token']}"
             
-            # Prepare and send the webhook
+            # Generate webhook ID and prepare payload
+            webhook_id = str(uuid.uuid4())
+            payload = self._prepare_payload(event, webhook_config)
+            
             try:
-                payload = self._prepare_payload(event, webhook_config)
-                
-                async with self.session.post(
-                    url,
-                    json=payload,
+                # Attempt delivery with retry support
+                delivery = await self.delivery_manager.deliver(
+                    webhook_id=webhook_id,
+                    event_id=event.event_id,
+                    url=url,
+                    payload=payload,
                     headers=headers,
-                    timeout=webhook_config.get("timeout", 5)
-                ) as response:
-                    if response.status >= 400:
-                        content = await response.text()
-                        logger.error(
-                            f"Webhook delivery failed: {response.status} - {content}"
-                        )
-                    else:
-                        logger.debug(
-                            f"Webhook delivered successfully: {event.type} to {url}"
-                        )
-                        
+                    timeout=webhook_config.get("timeout", 5.0)
+                )
+                
+                logger.debug(
+                    f"Webhook queued for delivery: {event.type} to {url} "
+                    f"(ID: {webhook_id})"
+                )
+                
             except Exception as e:
-                logger.error(f"Error delivering webhook: {str(e)}")
+                logger.error(
+                    f"Error queueing webhook: {str(e)}",
+                    extra={
+                        "webhook_id": webhook_id,
+                        "event_id": event.event_id,
+                        "url": url
+                    }
+                )
 
 # Global webhook handler instance
 webhook_handler: Optional[WebhookHandler] = None

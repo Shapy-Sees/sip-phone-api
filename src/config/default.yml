@@ -63,24 +63,51 @@ hardware:
 
 # Webhook configuration
 webhooks:
-  dtmf:
+  # Global webhook retry settings
+  retry:
+    max_attempts: 5
+    initial_delay: 1.0
+    max_delay: 300.0
+    backoff_factor: 2.0
+    jitter: true
+
+  # Webhook endpoints
+  endpoints:
     - id: main_dtmf
       url: ${DTMF_WEBHOOK_URL}  # Set in environment
-      secret: ${DTMF_WEBHOOK_SECRET}  # Set in environment
-      events: ["*"]
+      enabled: true
+      events: ["dtmf"]
       timeout: 5
-      max_retries: 3
+      auth:
+        type: bearer
+        token: ${DTMF_WEBHOOK_SECRET}  # Set in environment
       headers:
         X-Source: sip-phone-api
-  state:
+        Content-Type: application/json
+
     - id: main_state
       url: ${STATE_WEBHOOK_URL}  # Set in environment
-      secret: ${STATE_WEBHOOK_SECRET}  # Set in environment
-      events: ["state_changed", "call_started", "call_ended"]
+      enabled: true
+      events: ["state_change", "call_started", "call_ended"]
       timeout: 5
-      max_retries: 3
+      auth:
+        type: bearer
+        token: ${STATE_WEBHOOK_SECRET}  # Set in environment
       headers:
         X-Source: sip-phone-api
+        Content-Type: application/json
+
+    - id: system_events
+      url: ${SYSTEM_WEBHOOK_URL}  # Set in environment
+      enabled: true
+      events: ["system_error", "system_warning", "system_info"]
+      timeout: 10
+      auth:
+        type: bearer
+        token: ${SYSTEM_WEBHOOK_SECRET}  # Set in environment
+      headers:
+        X-Source: sip-phone-api
+        Content-Type: application/json
 
 # Operator server configuration
 operator:

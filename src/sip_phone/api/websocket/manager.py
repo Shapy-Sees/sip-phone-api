@@ -6,11 +6,14 @@ It coordinates different types of WebSocket connections and their lifecycles.
 
 import logging
 import json
+from datetime import datetime
 from typing import Dict, Set, Optional
 from fastapi import WebSocket, WebSocketDisconnect
 from .audio import audio_stream_manager
 from ...core.state import PhoneState
 from ...events.types import WebSocketEvent
+from ...utils.config import Config
+from ...utils.errors import WebSocketError
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -21,36 +24,62 @@ class ConnectionManager:
     Handles connection lifecycle and message distribution.
     """
     
-    def __init__(self):
+    def __init__(self, config: Config):
+        self.config = config
         self.control_connections: Set[WebSocket] = set()
         self.event_connections: Set[WebSocket] = set()
         self.client_info: Dict[WebSocket, dict] = {}
+        self.allowed_api_keys = set(config.get('security.allowed_api_keys', []))
     
-    async def connect(self, websocket: WebSocket, connection_type: str):
+    async def connect(self, websocket: WebSocket, connection_type: str, api_key: Optional[str] = None):
         """
-        Handle new WebSocket connection.
+        Handle new WebSocket connection with authentication.
         
         Args:
             websocket: The WebSocket connection
             connection_type: Type of connection ('control', 'event', or 'audio')
+            api_key: API key for authentication
+            
+        Raises:
+            WebSocketException: If authentication fails
         """
-        await websocket.accept()
-        
-        if connection_type == "audio":
-            await audio_stream_manager.connect(websocket)
+        # Validate API key
+        if not api_key or api_key not in self.allowed_api_keys:
+            logger.warning("Rejected WebSocket connection: Invalid API key")
+            await websocket.close(code=4001, reason="Invalid API key")
             return
             
-        if connection_type == "control":
-            self.control_connections.add(websocket)
-            logger.info(f"New control connection. Active control connections: {len(self.control_connections)}")
-        elif connection_type == "event":
-            self.event_connections.add(websocket)
-            logger.info(f"New event connection. Active event connections: {len(self.event_connections)}")
+        await websocket.accept()
+        
+        try:
+            if connection_type == "audio":
+                await audio_stream_manager.connect(websocket)
+                return
+                
+            if connection_type == "control":
+                self.control_connections.add(websocket)
+                logger.info(f"New control connection. Active control connections: {len(self.control_connections)}")
+            elif connection_type == "event":
+                self.event_connections.add(websocket)
+                logger.info(f"New event connection. Active event connections: {len(self.event_connections)}")
+            else:
+                logger.warning(f"Invalid connection type: {connection_type}")
+                await websocket.close(code=4002, reason="Invalid connection type")
+                return
+                
+            self.client_info[websocket] = {
+                "type": connection_type,
+                "authenticated": True,
+                "connected_at": datetime.utcnow().isoformat()
+            }
             
-        self.client_info[websocket] = {
-            "type": connection_type,
-            "authenticated": False  # TODO: Implement authentication
-        }
+            # Send initial state
+            await self.send_connection_status(websocket)
+            
+        except Exception as e:
+            logger.error(f"Error establishing WebSocket connection: {str(e)}")
+            await websocket.close(code=4000, reason="Internal server error")
+            raise
     
     async def disconnect(self, websocket: WebSocket):
         """
@@ -67,14 +96,15 @@ class ConnectionManager:
     
     async def broadcast_event(self, event_type: str, data: dict):
         """
-        Broadcast an event to all connected event listeners.
+        Broadcast an event to all authenticated event listeners.
         """
         if not self.event_connections:
             return
             
         message = {
             "type": event_type,
-            "data": data
+            "data": data,
+            "timestamp": datetime.utcnow().isoformat()
         }
         
         dead_connections = set()
@@ -93,26 +123,38 @@ class ConnectionManager:
     
     async def handle_control_message(self, websocket: WebSocket, message: dict):
         """
-        Handle incoming control messages.
+        Handle incoming control messages from authenticated clients.
         """
         try:
-            command = message.get("command")
-            if not command:
+            # Verify authentication
+            if not self.client_info.get(websocket, {}).get("authenticated"):
                 await websocket.send_json({
-                    "error": "Missing command in control message"
+                    "error": "Not authenticated",
+                    "code": 4001
                 })
                 return
                 
-            # TODO: Implement command handling
+            command = message.get("command")
+            if not command:
+                await websocket.send_json({
+                    "error": "Missing command in control message",
+                    "code": 4003
+                })
+                return
+                
+            # Handle commands
             if command == "mute":
-                # Handle mute command
-                pass
+                await audio_stream_manager.mute()
+                await self.broadcast_event("audio_state_changed", {"muted": True})
             elif command == "unmute":
-                # Handle unmute command
-                pass
+                await audio_stream_manager.unmute()
+                await self.broadcast_event("audio_state_changed", {"muted": False})
+            elif command == "get_status":
+                await self.send_connection_status(websocket)
             else:
                 await websocket.send_json({
-                    "error": f"Unknown command: {command}"
+                    "error": f"Unknown command: {command}",
+                    "code": 4004
                 })
                 
         except Exception as e:
@@ -150,5 +192,39 @@ class ConnectionManager:
             except:
                 await self.disconnect(websocket)
 
+    async def send_connection_status(self, websocket: WebSocket):
+        """
+        Send current connection status to a client.
+        
+        Args:
+            websocket: The WebSocket connection to send status to
+        """
+        try:
+            client_info = self.client_info.get(websocket, {})
+            status = {
+                "type": "connection_status",
+                "data": {
+                    "connection_type": client_info.get("type"),
+                    "authenticated": client_info.get("authenticated", False),
+                    "connected_at": client_info.get("connected_at"),
+                    "active_connections": {
+                        "control": len(self.control_connections),
+                        "event": len(self.event_connections),
+                        "audio": audio_stream_manager.active_connections_count
+                    }
+                }
+            }
+            await websocket.send_json(status)
+        except Exception as e:
+            logger.error(f"Error sending connection status: {str(e)}")
+            raise WebSocketError(f"Failed to send connection status: {str(e)}")
+
 # Global connection manager instance
-connection_manager = ConnectionManager()
+connection_manager = None
+
+def init_connection_manager(config: Config) -> ConnectionManager:
+    """Initialize the global connection manager with config."""
+    global connection_manager
+    if connection_manager is None:
+        connection_manager = ConnectionManager(config)
+    return connection_manager

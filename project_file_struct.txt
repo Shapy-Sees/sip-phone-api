@@ -1,35 +1,44 @@
-src/
-├── config/
-│   ├── default.yml
-│   └── config.yml
-├── sip_phone/
-│   ├── api/
-│   │   ├── __init__.py
-│   │   ├── models.py
-│   │   ├── routes.py
-│   │   ├── server.py
-│   │   └── ws.py
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── sip.py
-│   │   ├── dtmf.py
-│   │   └── state.py
-│   ├── integrations/
-│   │   ├── __init__.py
-│   │   ├── webhooks.py
-│   │   └── operator.py
-│   ├── hardware/
-│   │   ├── __init__.py
-│   │   └── ht802.py
-│   ├── utils/
-│   │   ├── __init__.py
-│   │   ├── config.py
-│   │   ├── logger.py
-│   │   └── errors.py
-│   ├── __init__.py
-│   └── __main__.py
-├── Dockerfile
-├── requirements.txt
-├── .dockerignore
-├── .env
-└── docker-compose.yml
+../sip-phone-api
+./architecture.md
+./requirements.txt
+./Dockerfile
+./docs
+./docs/client-development-guide.md
+./docs/api.md
+./README.md
+./setup.py
+./logs
+./logs/install.log
+./logs/dahdi_phone.log
+./scripts
+./scripts/diag.py
+./scripts/start.sh
+./docker-compose.yml
+./src
+./src/dahdi_phone
+./src/dahdi_phone/hardware
+./src/dahdi_phone/hardware/.DS_Store
+./src/dahdi_phone/hardware/__init__.py
+./src/dahdi_phone/hardware/fxs.py
+./src/dahdi_phone/core
+./src/dahdi_phone/core/interfaces.py
+./src/dahdi_phone/core/state_manager.py
+./src/dahdi_phone/core/dtmf_detector.py
+./src/dahdi_phone/core/__init__.py
+./src/dahdi_phone/core/dahdi_interface.py
+./src/dahdi_phone/core/audio_processor.py
+./src/dahdi_phone/core/buffer_manager.py
+./src/dahdi_phone/config
+./src/dahdi_phone/config/default.yml
+./src/dahdi_phone/config/config.yml
+./src/dahdi_phone/__init__.py
+./src/dahdi_phone/utils
+./src/dahdi_phone/utils/.DS_Store
+./src/dahdi_phone/utils/__init__.py
+./src/dahdi_phone/api
+./src/dahdi_phone/api/server.py
+./src/dahdi_phone/api/models.py
+./src/dahdi_phone/api/__init__.py
+./src/dahdi_phone/api/__main__.py
+./src/dahdi_phone/api/websocket.py
+./src/dahdi_phone/api/routes.py

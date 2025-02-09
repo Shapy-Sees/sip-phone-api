@@ -17,8 +17,8 @@ scipy>=1.11.3         # Signal processing
 pyaudio>=0.2.13       # Audio I/O alternative
 
 # SIP and VoIP
-pjsua2>=2.13          # SIP user agent library
-sdp-transform>=0.1.1  # SDP parsing/serialization
+python-sipsimple>=3.3.0  # SIP/RTP implementation
+sdp-transform>=0.1.1     # SDP parsing/serialization
 
 # Hardware integration
 pyserial>=3.5         # Serial communication

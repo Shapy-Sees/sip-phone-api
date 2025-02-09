@@ -21,7 +21,8 @@ import uvicorn
 from sip_phone.utils.logger import LoggerConfig, DAHDILogger as SIPLogger
 from sip_phone.utils.config import load_config
 from sip_phone.api.routes import router as api_router
-from sip_phone.api.websocket import WebSocketManager
+from sip_phone.api.websocket.manager import init_connection_manager
+from sip_phone.api.websocket.audio import init_audio_stream_manager
 
 # Initialize structured logger
 logger = SIPLogger().get_logger(__name__)
@@ -34,12 +35,15 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     logger.info("Starting SIP Phone API server")
-    app.state.websocket_manager = WebSocketManager()
+    config = load_config()
     app.state.startup_time = time.time()
     
     # Initialize subsystems
     try:
-        # Add any additional startup initialization here
+        # Initialize WebSocket managers
+        app.state.connection_manager = init_connection_manager(config)
+        app.state.audio_manager = init_audio_stream_manager(config)
+        
         logger.info("All subsystems initialized successfully")
         yield
     except Exception as e:
@@ -49,8 +53,17 @@ async def lifespan(app: FastAPI):
         # Shutdown sequence
         logger.info("Beginning shutdown sequence")
         try:
-            await app.state.websocket_manager.close_all()
-            # Add any additional cleanup here
+            # Stop audio processing
+            if hasattr(app.state, 'audio_manager'):
+                await app.state.audio_manager.audio_processor.stop()
+            
+            # Close all WebSocket connections
+            if hasattr(app.state, 'connection_manager'):
+                for ws in list(app.state.connection_manager.control_connections):
+                    await app.state.connection_manager.disconnect(ws)
+                for ws in list(app.state.connection_manager.event_connections):
+                    await app.state.connection_manager.disconnect(ws)
+            
             logger.info("Shutdown completed successfully")
         except Exception as e:
             logger.error("Error during shutdown", error=str(e), exc_info=True)
