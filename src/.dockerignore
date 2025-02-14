@@ -1,7 +1,6 @@
 # Version control
 .git
 .gitignore
-.gitattributes
 
 # Python
 __pycache__/
@@ -9,6 +8,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -25,92 +25,41 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
-.env
-.venv
-env/
+# Virtual Environment
 venv/
 ENV/
-env.bak/
-venv.bak/
+.env
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-*~
-.project
-.pydevproject
-.settings
-
-# Testing
-.coverage
-.tox/
-.pytest_cache/
-htmlcov/
-coverage.xml
-*.cover
-.hypothesis/
 
 # Logs and data
 logs/
 *.log
 data/
-*.db
-*.sqlite3
-
-# Documentation
-docs/_build/
-docs/_static/
-docs/_templates/
-
-# Configuration
-config/config.yml
-.env
-*.pem
-*.key
-*.crt
 
 # Docker
-Dockerfile
-docker-compose*.yml
 .docker/
+docker-compose.override.yml
 
-# Development tools
-.pre-commit-config.yaml
-mypy.ini
-setup.cfg
-tox.ini
-.flake8
-.pylintrc
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
 
-# Temporary files
-*.tmp
-*.temp
-*.bak
-.DS_Store
-Thumbs.db
+# Documentation
+docs/
+*.md
 
-# Audio files
-*.wav
-*.mp3
-*.ogg
-*.flac
+# Development files
+*.dev.*
+requirements.txt
+tests/
 
-# Build artifacts
-*.o
-*.ko
-*.obj
-*.elf
-*.bin
-
-# Example and template files
-*.example
-*.template
-*.sample
-
-# Editor backup files
-*~
-*.swp
-*.swo
+# Keep production files
+!requirements.prod.txt
+!config/default.yml

@@ -11,16 +11,34 @@ services:
     image: sip-phone-api:latest
     container_name: sip-phone-api
     restart: unless-stopped
+    privileged: true  # Required for hardware access
     ports:
-      - "8000:8000"  # API
-      - "5060:5060/udp"  # SIP
+      - "${API_PORT:-8000}:8000"  # API
+      - "${SIP_PORT:-5060}:5060/udp"  # SIP
+    devices:
+      - "/dev/snd:/dev/snd"  # Map sound devices
+    shm_size: '2gb'  # Shared memory for better performance
     volumes:
-      - ./config:/app/config:ro
-      - ./logs:/app/logs
-      - ./data:/app/data
+      - type: bind
+        source: ./logs
+        target: /app/logs
+      - type: bind
+        source: ./data
+        target: /app/data
+      - type: bind
+        source: ./config/default.yml
+        target: /app/config/default.yml
+        read_only: true
+      - type: bind
+        source: ${CONFIG_FILE:-./config/config.yml}
+        target: /app/config/config.yml
+        read_only: true
     environment:
       - TZ=UTC
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MOCK_HARDWARE=${MOCK_HARDWARE:-false}
+      - DEBUG_DTMF=${DEBUG_DTMF:-false}
+      - DEBUG_AUDIO=${DEBUG_AUDIO:-false}
       - HT802_PASSWORD=${HT802_PASSWORD}
       - DTMF_WEBHOOK_URL=${DTMF_WEBHOOK_URL}
       - DTMF_WEBHOOK_SECRET=${DTMF_WEBHOOK_SECRET}
@@ -30,72 +48,55 @@ services:
       - OPERATOR_API_KEY=${OPERATOR_API_KEY}
       - API_KEY_1=${API_KEY_1}
       - API_KEY_2=${API_KEY_2}
+      - API_HOST=0.0.0.0  # Always bind to all interfaces in container
+      - API_PORT=8000     # Internal port is fixed
+      - SIP_SERVER=${SIP_SERVER}
+      - HT802_HOST=${HT802_HOST}
+      - HT802_PORT=${HT802_PORT:-5060}
+      - EVENT_QUEUE_SIZE=${EVENT_QUEUE_SIZE:-1000}
+      - WORKER_THREADS=${WORKER_THREADS:-4}
+      - WEBSOCKET_PING_INTERVAL=${WEBSOCKET_PING_INTERVAL:-30}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-30}
     networks:
-      - sip-network
-    depends_on:
-      - prometheus
+      sip-network:
+        aliases:
+          - sip-phone-api
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/status/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ulimits:
+      memlock: -1  # Remove memory limitations
+      nofile:
+        soft: 65536
+        hard: 65536
 
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: sip-phone-prometheus
-    restart: unless-stopped
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus:/etc/prometheus:ro
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    networks:
-      - sip-network
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: sip-phone-grafana
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-      - grafana_data:/var/lib/grafana
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
-    networks:
-      - sip-network
-    depends_on:
-      - prometheus
+# Ensure directories exist
+volumes:
+  logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/logs
+  data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data
 
 networks:
   sip-network:
     driver: bridge
-
-volumes:
-  prometheus_data:
-  grafana_data:
-
-# Development overrides
-x-development:
-  api:
-    build:
-      target: development
-    environment:
-      - DEBUG=1
-      - MOCK_HARDWARE=true
-      - DEBUG_DTMF=true
-      - DEBUG_AUDIO=true
-    volumes:
-      - .:/app:ro  # Mount source code for development
-    command: ["python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "-m", "sip_phone"]
-    ports:
-      - "5678:5678"  # Debug port
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16

@@ -2,15 +2,22 @@
 
 ## Overview
 
-The SIP Phone API is a Raspberry Pi based system that bridges analog telephones (via Grandstream HT802 ATA) with modern smart home systems. It provides bidirectional communication, handling both incoming phone control commands and outgoing phone events through a combination of webhooks, WebSocket streaming, and REST APIs.
+The SIP Phone API is a network service that provides a clean interface to analog telephones connected through a Grandstream HT802 ATA (Analog Telephone Adapter). It provides bidirectional communication, handling both incoming phone control commands and outgoing phone events through a combination of webhooks, WebSocket streaming, and REST APIs.
 
 ## System Context
 
-### Hardware Components
-- Raspberry Pi (hosting this API)
-- Grandstream HT802 ATA
-- Analog telephone
-- Local network connection
+### Network Components
+- **SIP Server** (this API)
+  - Handles SIP signaling with HT802
+  - Manages phone state
+  - Processes events
+  - Streams audio
+- **Grandstream HT802 ATA**
+  - Converts analog phone signals to SIP
+  - Must be on same network as API
+  - Pre-configured with SIP settings
+- **Analog telephone** (connected to HT802)
+- **Local network connection**
 
 ### External Systems
 - **Operator Server**
@@ -22,6 +29,17 @@ The SIP Phone API is a Raspberry Pi based system that bridges analog telephones 
   - Streams audio bidirectionally
 
 ## Core Design Decisions
+
+### 0. Pure Network Interface
+**Decision**: Implement as network service only, communicating with HT802 via SIP protocol.
+
+**Rationale**:
+- Eliminates hardware dependencies
+- Simplifies deployment
+- Works with any HT802-compatible phone
+- Allows for future hardware flexibility
+
+
 
 ### 1. Event-Driven Architecture
 **Decision**: Implement a centralized event system for all phone-related events.

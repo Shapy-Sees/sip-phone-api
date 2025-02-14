@@ -1,0 +1,38 @@
+# Core dependencies
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.4.2
+python-dotenv>=1.0.0
+PyYAML>=6.0.1
+
+# WebSocket and async support
+websockets>=12.0
+aiohttp>=3.9.0
+asyncio>=3.4.3
+
+# Audio processing
+sounddevice>=0.4.6
+numpy>=1.24.0
+scipy>=1.11.3
+pyaudio>=0.2.13
+
+# SIP and VoIP
+sdp-transform>=0.1.1
+
+# Hardware integration
+pyserial>=3.5
+pyusb>=1.2.1
+
+# System utilities
+psutil>=5.9.6
+
+# Security
+python-jose>=3.3.0
+passlib>=1.7.4
+bcrypt>=4.0.1
+cryptography>=41.0.0
+
+# Logging
+structlog>=23.2.0
+python-json-logger>=2.0.7
+rich>=13.6.0

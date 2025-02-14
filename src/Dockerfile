@@ -10,30 +10,66 @@ ENV PYTHONUNBUFFERED=1 \
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies required for python-sipsimple and other packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libpq-dev \
+    python3-dev \
+    libssl-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    libffi-dev \
+    pkg-config \
+    libtool \
+    automake \
+    gcc \
+    g++ \
+    make \
+    # SIP dependencies
+    libsrtp2-dev \
+    libsrtp2-1 \
+    # Audio dependencies
     libportaudio2 \
     libportaudiocpp0 \
     portaudio19-dev \
     libsndfile1 \
     libasound2-dev \
+    # Additional dependencies
+    curl \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install python-sipsimple with architecture-specific flags
+RUN DEBIAN_FRONTEND=noninteractive && \
+    if [ "$(uname -m)" = "aarch64" ]; then \
+        CFLAGS="-DHAVE_OPENSSL_SSL_H=1 -I/usr/include/openssl" \
+        LDFLAGS="-L/usr/lib/aarch64-linux-gnu" \
+        pip install --no-cache-dir python-sipsimple==3.3.0 || \
+        (echo "Failed to install python-sipsimple on ARM64. Attempting fallback build..." && \
+        apt-get update && \
+        apt-get install -y --no-install-recommends git && \
+        git clone https://github.com/AGProjects/python-sipsimple.git && \
+        cd python-sipsimple && \
+        CFLAGS="-DHAVE_OPENSSL_SSL_H=1 -I/usr/include/openssl" \
+        LDFLAGS="-L/usr/lib/aarch64-linux-gnu" \
+        python setup.py build_ext --pjsip-clean-compile && \
+        python setup.py install); \
+    else \
+        CFLAGS="-DHAVE_OPENSSL_SSL_H=1 -I/usr/include/openssl" \
+        LDFLAGS="-L/usr/lib/x86_64-linux-gnu" \
+        pip install --no-cache-dir python-sipsimple==3.3.0; \
+    fi
 
-# Copy configuration files
-COPY config/default.yml /app/config/default.yml
-COPY config/config.yml /app/config/config.yml
+# Copy and install other requirements
+COPY requirements.prod.txt .
+RUN pip install --no-cache-dir -r requirements.prod.txt
 
-# Copy source code
-COPY sip_phone /app/sip_phone
+# Copy source code and config
+COPY sip_phone/ /app/sip_phone/
+COPY config/ /app/config/
 
-# Create necessary directories
-RUN mkdir -p /app/logs /app/data
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/logs /app/data && \
+    chmod 755 /app/logs /app/data
 
 # Create non-root user
 RUN useradd -m -u 1000 sipphone && \
@@ -42,14 +78,14 @@ RUN useradd -m -u 1000 sipphone && \
 # Switch to non-root user
 USER sipphone
 
-# Expose ports
-EXPOSE 8000
+# Expose ports (both REST API and SIP)
+EXPOSE 8000 5060/udp
 
 # Set entrypoint and default command
 ENTRYPOINT ["python", "-m"]
 CMD ["sip_phone"]
 
-# Health check
+# Health check with proper timeout
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/status/health || exit 1
 
@@ -68,5 +104,5 @@ LABEL org.label-schema.build-date=$BUILD_DATE \
       org.label-schema.vcs-ref=$VCS_REF \
       org.label-schema.schema-version="1.0"
 
-# Volume for persistent data
+# Volume for persistent data and logs
 VOLUME ["/app/data", "/app/logs"]
