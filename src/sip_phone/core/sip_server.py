@@ -32,13 +32,13 @@ from sipsimple.session import Session
 from sipsimple.streams import AudioStream
 from sipsimple.threading.green import run_in_green_thread
 
-from ..utils.logger import DAHDILogger, log_function_call
+from ..utils.logger import SIPLogger, log_function_call
 from ..utils.config import Config
 from ..events.dispatcher import EventDispatcher
 from ..events.types import PhoneEvent, CallState, DTMFEvent
 
 # Get structured logger
-logger = DAHDILogger().get_logger(__name__)
+logger = SIPLogger().get_logger(__name__)
 
 @dataclass
 class AudioConfig:
@@ -82,8 +82,8 @@ class SIPServer(SIPApplication):
         self.audio_config = AudioConfig(
             sample_rate=self.config.audio.sample_rate,
             channels=self.config.audio.channels,
-            bit_depth=self.config.audio.bit_depth,
-            ptime=self.config.audio.ptime,
+            bit_depth=16,  # Fixed value since not in config
+            ptime=20,  # Fixed value since not in config
             codec=self.config.audio.codec
         )
         
@@ -126,16 +126,16 @@ class SIPServer(SIPApplication):
             # Start SIP engine with configuration
             self.engine.start(
                 auto_sound=False,  # We'll handle audio manually
-                udp_port=self.config.server.sip_port,
-                tcp_port=self.config.server.sip_port,
-                user_agent=f'SIP Phone API {self.config.version}'
+                udp_port=int(self.config.sip.server.split(':')[-1]),
+                tcp_port=int(self.config.sip.server.split(':')[-1]),
+                user_agent=self.config.sip.user_agent
             )
             
             # Configure account for HT802 registration
             self.account = Account(self.storage)
-            self.account.id = self.config.ht802.username
-            self.account.auth.password = self.config.ht802.password
-            self.account.sip.outbound_proxy = self.config.ht802.host
+            self.account.id = self.config.hardware.ht802['username']
+            self.account.auth.password = self.config.hardware.ht802['password']
+            self.account.sip.outbound_proxy = self.config.hardware.ht802['host']
             self.account.sip.register = True  # Accept registrations
             self.account.save()
             
@@ -143,8 +143,8 @@ class SIPServer(SIPApplication):
             self.start(storage=self.storage)
             
             logger.info("SIP server started successfully",
-                       host=self.config.server.host,
-                       port=self.config.server.sip_port,
+                       host=self.config.hardware.ht802['host'],
+                       port=int(self.config.sip.server.split(':')[-1]),
                        registration_enabled=self.account.sip.register)
             
         except Exception as e:
@@ -195,7 +195,7 @@ class SIPServer(SIPApplication):
             device_uri = str(request.from_header.uri)
             
             # Validate device
-            if device_uri != self.config.ht802.host:
+            if device_uri != self.config.hardware.ht802['host']:
                 logger.warning("Rejected registration from unknown device",
                              device=device_uri)
                 request.reject(403)  # Forbidden
@@ -402,7 +402,7 @@ class SIPServer(SIPApplication):
         """Trigger phone to ring"""
         try:
             # Create INVITE for ring
-            uri = SIPURI(host=self.config.ht802.host)
+            uri = SIPURI(host=self.config.hardware.ht802['host'])
             session = Session(self.account)
             audio_stream = AudioStream()
             session.connect([audio_stream], uri)

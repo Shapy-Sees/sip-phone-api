@@ -1,5 +1,5 @@
-# Use Python 3.11 slim image as base
-FROM python:3.11-slim
+# Use Python 3.8 slim image as base
+FROM python:3.8-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -39,23 +39,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python-sipsimple with architecture-specific flags
-RUN DEBIAN_FRONTEND=noninteractive && \
+RUN export DEBIAN_FRONTEND=noninteractive && \
     if [ "$(uname -m)" = "aarch64" ]; then \
-        CFLAGS="-DHAVE_OPENSSL_SSL_H=1 -I/usr/include/openssl" \
-        LDFLAGS="-L/usr/lib/aarch64-linux-gnu" \
-        pip install --no-cache-dir python-sipsimple==3.3.0 || \
+        export CFLAGS="-DHAVE_OPENSSL_SSL_H=1 -I/usr/include/openssl" && \
+        export LDFLAGS="-L/usr/lib/aarch64-linux-gnu" && \
+        (pip install --no-cache-dir python-sipsimple==3.3.0 || \
         (echo "Failed to install python-sipsimple on ARM64. Attempting fallback build..." && \
         apt-get update && \
         apt-get install -y --no-install-recommends git && \
         git clone https://github.com/AGProjects/python-sipsimple.git && \
         cd python-sipsimple && \
-        CFLAGS="-DHAVE_OPENSSL_SSL_H=1 -I/usr/include/openssl" \
-        LDFLAGS="-L/usr/lib/aarch64-linux-gnu" \
         python setup.py build_ext --pjsip-clean-compile && \
-        python setup.py install); \
+        python setup.py install)); \
     else \
-        CFLAGS="-DHAVE_OPENSSL_SSL_H=1 -I/usr/include/openssl" \
-        LDFLAGS="-L/usr/lib/x86_64-linux-gnu" \
+        export CFLAGS="-DHAVE_OPENSSL_SSL_H=1 -I/usr/include/openssl" && \
+        export LDFLAGS="-L/usr/lib/x86_64-linux-gnu" && \
         pip install --no-cache-dir python-sipsimple==3.3.0; \
     fi
 

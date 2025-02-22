@@ -1,0 +1,80 @@
+# Development configuration for SIP Phone API
+
+# Override logging configuration
+logging:
+  level: DEBUG
+  handlers:
+    file:
+      path: logs/sip_phone.log
+      enabled: true
+    console:
+      enabled: true
+      color: true
+
+# API server configuration
+api:
+  host: 0.0.0.0
+  port: 8000
+  debug: true
+  cors_origins:
+    - http://localhost:3000
+    - http://localhost:8080
+
+# SIP configuration
+sip:
+  server: udp:127.0.0.1:5060
+  registration_timeout: 3600
+
+# Hardware configuration
+hardware:
+  ht802:
+    host: 127.0.0.1
+    port: 5060
+    username: admin
+    password: ${HT802_PASSWORD}
+
+# Webhook configuration
+webhooks:
+  endpoints:
+    - id: main_dtmf
+      url: ${DTMF_WEBHOOK_URL}
+      enabled: true
+      events: ["dtmf"]
+      auth:
+        type: bearer
+        token: ${DTMF_WEBHOOK_SECRET}
+    
+    - id: main_state
+      url: ${STATE_WEBHOOK_URL}
+      enabled: true
+      events: ["state_change", "call_started", "call_ended"]
+      auth:
+        type: bearer
+        token: ${STATE_WEBHOOK_SECRET}
+
+# Operator configuration
+operator:
+  url: ${OPERATOR_URL}
+  api_key: ${OPERATOR_API_KEY}
+  timeout: 10
+  max_retries: 3
+
+# Security configuration
+security:
+  allowed_api_keys:
+    - ${API_KEY_1}
+    - ${API_KEY_2}
+  ssl:
+    enabled: false
+
+# Development settings
+development:
+  mock_hardware: true
+  debug_dtmf: true
+  debug_audio: true
+  profile_enabled: true
+
+# Event system configuration
+events:
+  queue_size: 1000
+  worker_threads: 4

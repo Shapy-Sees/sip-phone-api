@@ -1,6 +1,6 @@
 # src/sip_phone/utils/config.py
 """
-Configuration management for DAHDI Phone API.
+Configuration management for SIP Phone API.
 Handles loading and validating configuration from YAML files and environment variables.
 Provides type-safe access to configuration values with comprehensive error checking.
 """
@@ -16,52 +16,90 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 @dataclass
-class ServerConfig:
-    """Server configuration parameters"""
-    host: str
-    rest_port: int
-    websocket_port: int
-    workers: int
-
-@dataclass
-class DAHDIConfig:
-    """DAHDI hardware configuration parameters"""
-    device: str
-    control: str
-    channel: int
-    sample_rate: int
-    channels: int
-    bit_depth: int
-    buffer_size: int
-
-@dataclass
-class LogConfig:
+class LoggingConfig:
     """Logging configuration parameters"""
     level: str
     format: str
-    output: str
-    rotation: str
-    retention: str
+    handlers: dict
 
 @dataclass
 class APIConfig:
-    """API behavior configuration parameters"""
-    rate_limit: int
-    timeout: int
-    max_connections: int
+    """API configuration parameters"""
+    host: str
+    port: int
+    debug: bool
+    cors_origins: list[str]
+    request_timeout: int
+    max_upload_size: str
 
 @dataclass
 class WebSocketConfig:
     """WebSocket configuration parameters"""
     ping_interval: int
     ping_timeout: int
-    max_message_size: int
+    max_message_size: str
+    compression: bool
+
+@dataclass
+class SIPConfig:
+    """SIP configuration parameters"""
+    server: str
+    user_agent: str
+    registration_timeout: int
+    retry_count: int
+    retry_delay: int
+
+@dataclass
+class AudioConfig:
+    """Audio configuration parameters"""
+    sample_rate: int
+    channels: int
+    buffer_size: int
+    codec: str
+    dtmf: dict
+
+@dataclass
+class HardwareConfig:
+    """Hardware configuration parameters"""
+    ht802: dict
+
+@dataclass
+class WebhookConfig:
+    """Webhook configuration parameters"""
+    retry: dict
+    endpoints: list[dict]
+
+@dataclass
+class OperatorConfig:
+    """Operator configuration parameters"""
+    url: str
+    api_key: str
+    timeout: int
+    max_retries: int
+    connection_check_interval: int
+
+@dataclass
+class EventsConfig:
+    """Event system configuration parameters"""
+    queue_size: int
+    worker_threads: int
+    retry_policy: dict
 
 @dataclass
 class SecurityConfig:
     """Security configuration parameters"""
-    allowed_origins: list[str]
-    api_tokens: list[str]
+    api_key_header: str
+    allowed_api_keys: list[str]
+    rate_limit: dict
+    ssl: dict
+
+@dataclass
+class DevelopmentConfig:
+    """Development configuration parameters"""
+    mock_hardware: bool
+    debug_dtmf: bool
+    debug_audio: bool
+    profile_enabled: bool
 
 class ConfigurationError(Exception):
     """Custom exception for configuration errors"""
@@ -69,7 +107,7 @@ class ConfigurationError(Exception):
 
 class Config:
     """
-    Central configuration management for DAHDI Phone API.
+    Central configuration management for SIP Phone API.
     Handles loading, validation, and access to configuration values.
     """
     _instance = None
@@ -82,12 +120,17 @@ class Config:
 
     def __init__(self):
         if not self._initialized:
-            self.server = None
-            self.dahdi = None
             self.logging = None
             self.api = None
             self.websocket = None
+            self.sip = None
+            self.audio = None
+            self.hardware = None
+            self.webhooks = None
+            self.operator = None
+            self.events = None
             self.security = None
+            self.development = None
             self._config_path = None
             self._raw_config = {}
             self._initialized = True
@@ -133,12 +176,17 @@ class Config:
             
             logger.info(f"Configuration loaded successfully from {self._config_path}")
             logger.debug("Final configuration after environment overrides and validation:")
-            logger.debug(f"Server config: {vars(self.server)}")
-            logger.debug(f"DAHDI config: {vars(self.dahdi)}")
             logger.debug(f"Logging config: {vars(self.logging)}")
             logger.debug(f"API config: {vars(self.api)}")
             logger.debug(f"WebSocket config: {vars(self.websocket)}")
+            logger.debug(f"SIP config: {vars(self.sip)}")
+            logger.debug(f"Audio config: {vars(self.audio)}")
+            logger.debug(f"Hardware config: {vars(self.hardware)}")
+            logger.debug(f"Webhooks config: {vars(self.webhooks)}")
+            logger.debug(f"Operator config: {vars(self.operator)}")
+            logger.debug(f"Events config: {vars(self.events)}")
             logger.debug(f"Security config: {vars(self.security)}")
+            logger.debug(f"Development config: {vars(self.development)}")
             
         except Exception as e:
             logger.error(f"Failed to load configuration: {str(e)}", exc_info=True)
@@ -147,88 +195,137 @@ class Config:
     def _apply_env_overrides(self) -> None:
         """Apply environment variable overrides to configuration"""
         env_mapping = {
-            "DAHDI_API_HOST": ("server", "host"),
-            "DAHDI_API_REST_PORT": ("server", "rest_port", int),
-            "DAHDI_API_WS_PORT": ("server", "websocket_port", int),
-            "DAHDI_DEVICE": ("dahdi", "device"),
-            "DAHDI_CHANNEL": ("dahdi", "channel", int),
+            "API_HOST": ("api", "host"),
+            "API_PORT": ("api", "port", int),
             "LOG_LEVEL": ("logging", "level"),
-            "LOG_OUTPUT": ("logging", "output"),
-            "API_TIMEOUT": ("api", "timeout", int),
-            "API_RATE_LIMIT": ("api", "rate_limit", int),
+            "SIP_SERVER": ("sip", "server"),
+            "HT802_HOST": ("hardware", "ht802", "host"),
+            "HT802_PASSWORD": ("hardware", "ht802", "password"),
+            "OPERATOR_URL": ("operator", "url"),
+            "OPERATOR_API_KEY": ("operator", "api_key"),
+            "DTMF_WEBHOOK_URL": ("webhooks", "endpoints", 0, "url"),
+            "STATE_WEBHOOK_URL": ("webhooks", "endpoints", 1, "url"),
+            "SYSTEM_WEBHOOK_URL": ("webhooks", "endpoints", 2, "url")
         }
 
         for env_var, config_path in env_mapping.items():
             if env_var in os.environ:
-                section, key = config_path[0], config_path[1]
                 value = os.environ[env_var]
+                current_dict = self._raw_config
+                
+                # Navigate to the correct nested dictionary
+                for i, key in enumerate(config_path[:-1]):
+                    if isinstance(key, int):  # Handle list indices
+                        while len(current_dict) <= key:
+                            current_dict.append({})
+                        current_dict = current_dict[key]
+                    else:  # Handle dictionary keys
+                        if key not in current_dict:
+                            current_dict[key] = {}
+                        current_dict = current_dict[key]
+                
+                # Set the final value
+                final_key = config_path[-1]
                 
                 # Apply type conversion if specified
-                if len(config_path) > 2:
+                if len(config_path) > 2 and not isinstance(config_path[-2], int):
                     try:
                         value = config_path[2](value)
                     except ValueError as e:
                         raise ConfigurationError(
                             f"Invalid environment variable {env_var}: {str(e)}"
                         )
-
-                # Ensure section exists
-                if section not in self._raw_config:
-                    self._raw_config[section] = {}
-                    
-                self._raw_config[section][key] = value
+                
+                current_dict[final_key] = value
                 logger.debug(f"Applied environment override: {env_var}={value}")
 
     def _validate_and_create_configs(self) -> None:
         """Validate configuration and create typed configuration objects"""
         try:
-            # Server configuration
-            self.server = ServerConfig(
-                host=self._get_config_value("server", "host", str, "0.0.0.0"),
-                rest_port=self._get_config_value("server", "rest_port", int, 8000),
-                websocket_port=self._get_config_value("server", "websocket_port", int, 8001),
-                workers=self._get_config_value("server", "workers", int, 4)
-            )
-
-            # DAHDI configuration
-            audio_config = self._raw_config.get("dahdi", {}).get("audio", {})
-            self.dahdi = DAHDIConfig(
-                device=self._get_config_value("dahdi", "device", str),
-                control=self._get_config_value("dahdi", "control", str),
-                channel=self._get_config_value("dahdi", "channel", int),
-                sample_rate=self._get_config_value("audio", "sample_rate", int, 8000, audio_config),
-                channels=self._get_config_value("audio", "channels", int, 1, audio_config),
-                bit_depth=self._get_config_value("audio", "bit_depth", int, 16, audio_config),
-                buffer_size=self._get_config_value("dahdi", "buffer_size", int, 320)
-            )
-
             # Logging configuration
-            self.logging = LogConfig(
+            self.logging = LoggingConfig(
                 level=self._get_config_value("logging", "level", str, "INFO"),
-                format=self._get_config_value("logging", "format", str, "json"),
-                output=self._get_config_value("logging", "output", str),
-                rotation=self._get_config_value("logging", "rotation", str, "1 day"),
-                retention=self._get_config_value("logging", "retention", str, "30 days")
+                format=self._get_config_value("logging", "format", str),
+                handlers=self._get_config_value("logging", "handlers", dict)
             )
 
             # API configuration
             self.api = APIConfig(
-                rate_limit=self._get_config_value("api", "rate_limit", int, 100),
-                timeout=self._get_config_value("api", "timeout", int, 30),
-                max_connections=self._get_config_value("api", "max_connections", int, 1000)
+                host=self._get_config_value("api", "host", str, "0.0.0.0"),
+                port=self._get_config_value("api", "port", int, 8000),
+                debug=self._get_config_value("api", "debug", bool, False),
+                cors_origins=self._get_config_value("api", "cors_origins", list),
+                request_timeout=self._get_config_value("api", "request_timeout", int, 30),
+                max_upload_size=self._get_config_value("api", "max_upload_size", str, "10MB")
             )
 
             # WebSocket configuration
             self.websocket = WebSocketConfig(
                 ping_interval=self._get_config_value("websocket", "ping_interval", int, 30),
                 ping_timeout=self._get_config_value("websocket", "ping_timeout", int, 10),
-                max_message_size=self._get_config_value("websocket", "max_message_size", int, 1048576)
+                max_message_size=self._get_config_value("websocket", "max_message_size", str),
+                compression=self._get_config_value("websocket", "compression", bool, True)
+            )
+
+            # SIP configuration
+            self.sip = SIPConfig(
+                server=self._get_config_value("sip", "server", str),
+                user_agent=self._get_config_value("sip", "user_agent", str),
+                registration_timeout=self._get_config_value("sip", "registration_timeout", int),
+                retry_count=self._get_config_value("sip", "retry_count", int),
+                retry_delay=self._get_config_value("sip", "retry_delay", int)
+            )
+
+            # Audio configuration
+            self.audio = AudioConfig(
+                sample_rate=self._get_config_value("audio", "sample_rate", int),
+                channels=self._get_config_value("audio", "channels", int),
+                buffer_size=self._get_config_value("audio", "buffer_size", int),
+                codec=self._get_config_value("audio", "codec", str),
+                dtmf=self._get_config_value("audio", "dtmf", dict)
+            )
+
+            # Hardware configuration
+            self.hardware = HardwareConfig(
+                ht802=self._get_config_value("hardware", "ht802", dict)
+            )
+
+            # Webhook configuration
+            self.webhooks = WebhookConfig(
+                retry=self._get_config_value("webhooks", "retry", dict),
+                endpoints=self._get_config_value("webhooks", "endpoints", list)
+            )
+
+            # Operator configuration
+            self.operator = OperatorConfig(
+                url=self._get_config_value("operator", "url", str),
+                api_key=self._get_config_value("operator", "api_key", str),
+                timeout=self._get_config_value("operator", "timeout", int),
+                max_retries=self._get_config_value("operator", "max_retries", int),
+                connection_check_interval=self._get_config_value("operator", "connection_check_interval", int)
+            )
+
+            # Events configuration
+            self.events = EventsConfig(
+                queue_size=self._get_config_value("events", "queue_size", int),
+                worker_threads=self._get_config_value("events", "worker_threads", int),
+                retry_policy=self._get_config_value("events", "retry_policy", dict)
             )
 
             # Security configuration
             self.security = SecurityConfig(
-                allowed_origins=self._get_config_value("security", "allowed_origins", list, ["*"]),
-                api_tokens=self._get_config_value("security", "api_tokens", list, [])
+                api_key_header=self._get_config_value("security", "api_key_header", str),
+                allowed_api_keys=self._get_config_value("security", "allowed_api_keys", list),
+                rate_limit=self._get_config_value("security", "rate_limit", dict),
+                ssl=self._get_config_value("security", "ssl", dict)
+            )
+
+            # Development configuration
+            self.development = DevelopmentConfig(
+                mock_hardware=self._get_config_value("development", "mock_hardware", bool, False),
+                debug_dtmf=self._get_config_value("development", "debug_dtmf", bool, False),
+                debug_audio=self._get_config_value("development", "debug_audio", bool, False),
+                profile_enabled=self._get_config_value("development", "profile_enabled", bool, False)
             )
 
             logger.debug("Configuration validation completed successfully")
@@ -300,19 +397,3 @@ class Config:
             self.load(self._config_path)
         else:
             raise ConfigurationError("No configuration path set, cannot reload")
-
-# Example usage:
-"""
-# Get configuration instance
-config = Config()
-
-# Load configuration
-config.load("/etc/dahdi_phone/config.yml")
-
-# Access configuration values
-rest_port = config.server.rest_port
-log_level = config.logging.level
-
-# Reload configuration if needed
-config.reload()
-"""

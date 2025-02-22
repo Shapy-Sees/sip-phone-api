@@ -15,25 +15,20 @@ from .core.sip_server import SIPServer
 from .utils.config import Config, ConfigurationError
 from .utils.logger import SIPLogger, LoggerConfig
 from .api.server import APIServer
-from .websocket.server import WebSocketServer
+from .api.websocket.manager import init_connection_manager
+from .events.dispatcher import EventDispatcher
 
 async def shutdown(sip_server: Optional[SIPServer] = None,
-                  api_server: Optional[APIServer] = None,
-                  ws_server: Optional[WebSocketServer] = None) -> None:
+                  api_server: Optional[APIServer] = None) -> None:
     """
     Gracefully shut down all services.
     
     Args:
         sip_server: SIP server instance
         api_server: API server instance
-        ws_server: WebSocket server instance
     """
     logger = SIPLogger().get_logger(__name__)
     logger.info("Initiating graceful shutdown")
-    
-    if ws_server:
-        logger.debug("Stopping WebSocket server")
-        await ws_server.stop()
         
     if api_server:
         logger.debug("Stopping API server")
@@ -73,10 +68,15 @@ async def main() -> None:
                  config_path=str(config_path),
                  log_level=config.logging.level)
         
+        # Initialize event dispatcher
+        event_dispatcher = EventDispatcher()
+        
         # Initialize servers
-        sip_server = SIPServer()
+        sip_server = SIPServer(event_dispatcher)
         api_server = APIServer(sip_server)
-        ws_server = WebSocketServer(sip_server)
+        
+        # Initialize WebSocket manager
+        ws_manager = init_connection_manager(config)
         
         # Setup signal handlers for graceful shutdown
         loop = asyncio.get_running_loop()
@@ -85,7 +85,7 @@ async def main() -> None:
             loop.add_signal_handler(
                 s,
                 lambda s=s: asyncio.create_task(
-                    shutdown(sip_server, api_server, ws_server)
+                    shutdown(sip_server, api_server)
                 )
             )
         
@@ -100,14 +100,9 @@ async def main() -> None:
         log.debug("Starting API server")
         await api_server.start()
         
-        # Start WebSocket server
-        log.debug("Starting WebSocket server")
-        await ws_server.start()
-        
         log.info("All services started successfully",
-                 sip_port=config.server.sip_port,
-                 api_port=config.server.rest_port,
-                 ws_port=config.server.websocket_port)
+                 sip_port=config.sip.server.split(':')[-1],
+                 api_port=config.api.port)
         
         # Keep the application running
         while True:
