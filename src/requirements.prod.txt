@@ -1,39 +1,38 @@
 # Core dependencies
-fastapi>=0.104.0
-uvicorn>=0.24.0
-pydantic>=2.4.2
-python-dotenv>=1.0.0
-PyYAML>=6.0.1
+fastapi>=0.104.0,<0.105.0        # Web framework
+uvicorn>=0.24.0,<0.25.0          # ASGI server
+pydantic>=2.4.2,<3.0.0           # Data validation
+python-dotenv>=1.0.0,<2.0.0      # Environment variable management
+PyYAML>=6.0.1,<7.0.0            # YAML configuration support
 
 # WebSocket and async support
-websockets>=12.0
-aiohttp>=3.9.0
-asyncio>=3.4.3
+websockets>=12.0,<13.0          # WebSocket protocol support
+aiohttp>=3.9.0,<4.0.0          # Async HTTP client
+asyncio>=3.4.3,<4.0.0          # Async I/O support
 
 # Audio processing
-sounddevice>=0.4.6
-numpy>=1.24.0
-scipy>=1.11.3
-pyaudio>=0.2.13
+sounddevice>=0.4.6,<0.5.0      # Audio I/O
+numpy>=1.24.0,<2.0.0           # Numerical computations
+scipy>=1.10.1,<1.11.0          # Signal processing - Fixed version for stability
+pyaudio>=0.2.13,<0.3.0         # Audio I/O alternative
 
-# SIP and VoIP
-python-sipsimple>=3.3.0  # Core SIP/RTP implementation
-sdp-transform>=0.1.1     # SDP parsing/serialization
+# SDP parsing
+sdp-transform>=1.0.0,<1.2.0     # SDP parsing/serialization
 
 # Hardware integration
-pyserial>=3.5
-pyusb>=1.2.1
+pyserial>=3.5,<4.0             # Serial communication
+pyusb>=1.2.1,<2.0.0           # USB communication
 
 # System utilities
-psutil>=5.9.6
+psutil>=5.9.6,<6.0.0          # System monitoring
 
 # Security
-python-jose>=3.3.0
-passlib>=1.7.4
-bcrypt>=4.0.1
-cryptography>=41.0.0
+python-jose>=3.3.0,<4.0.0     # JWT handling
+passlib>=1.7.4,<2.0.0         # Password hashing
+bcrypt>=4.0.1,<5.0.0          # Password hashing
+cryptography>=41.0.0,<42.0.0  # Cryptographic operations
 
-# Logging
-structlog>=23.2.0
-python-json-logger>=2.0.7
-rich>=13.6.0
+# Logging and monitoring
+structlog>=23.2.0,<24.0.0     # Structured logging
+python-json-logger>=2.0.7,<3.0.0  # JSON logging
+rich>=13.6.0,<14.0.0          # Rich terminal output
