@@ -17,7 +17,8 @@ scipy>=1.11.3
 pyaudio>=0.2.13
 
 # SIP and VoIP
-sdp-transform>=0.1.1
+python-sipsimple>=3.3.0  # Core SIP/RTP implementation
+sdp-transform>=0.1.1     # SDP parsing/serialization
 
 # Hardware integration
 pyserial>=3.5

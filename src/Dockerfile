@@ -38,24 +38,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install python-sipsimple with architecture-specific flags
+# Install python-sipsimple with proper dependencies and flags
 RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git \
+        python3-dev \
+        libssl-dev \
+        libv4l-dev \
+        libx264-dev \
+        libopus-dev \
+        libvpx-dev && \
+    # Clone and build python-sipsimple from source
+    git clone https://github.com/AGProjects/python-sipsimple.git /tmp/python-sipsimple && \
+    cd /tmp/python-sipsimple && \
+    # Set architecture-specific flags
     if [ "$(uname -m)" = "aarch64" ]; then \
-        export CFLAGS="-DHAVE_OPENSSL_SSL_H=1 -I/usr/include/openssl" && \
-        export LDFLAGS="-L/usr/lib/aarch64-linux-gnu" && \
-        (pip install --no-cache-dir python-sipsimple==3.3.0 || \
-        (echo "Failed to install python-sipsimple on ARM64. Attempting fallback build..." && \
-        apt-get update && \
-        apt-get install -y --no-install-recommends git && \
-        git clone https://github.com/AGProjects/python-sipsimple.git && \
-        cd python-sipsimple && \
-        python setup.py build_ext --pjsip-clean-compile && \
-        python setup.py install)); \
+        export CFLAGS="-DHAVE_OPENSSL_SSL_H=1 -I/usr/include/openssl -I/usr/include/aarch64-linux-gnu" && \
+        export LDFLAGS="-L/usr/lib/aarch64-linux-gnu"; \
     else \
-        export CFLAGS="-DHAVE_OPENSSL_SSL_H=1 -I/usr/include/openssl" && \
-        export LDFLAGS="-L/usr/lib/x86_64-linux-gnu" && \
-        pip install --no-cache-dir python-sipsimple==3.3.0; \
-    fi
+        export CFLAGS="-DHAVE_OPENSSL_SSL_H=1 -I/usr/include/openssl -I/usr/include/x86_64-linux-gnu" && \
+        export LDFLAGS="-L/usr/lib/x86_64-linux-gnu"; \
+    fi && \
+    # Build and install
+    python setup.py build_ext --pjsip-clean-compile && \
+    python setup.py install && \
+    # Cleanup
+    cd / && \
+    rm -rf /tmp/python-sipsimple && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy and install other requirements
 COPY requirements.prod.txt .
