@@ -1,3 +1,6 @@
+# src/requirements.txt
+# Consolidated requirements file for SIP Phone API using PJSIP
+
 # Core dependencies
 fastapi>=0.104.0        # Web framework
 uvicorn>=0.24.0        # ASGI server
@@ -16,16 +19,18 @@ numpy>=1.24.0         # Numerical computations
 scipy>=1.11.3         # Signal processing
 pyaudio>=0.2.13       # Audio I/O alternative
 
-# SIP and VoIP
-python-sipsimple>=3.3.0  # SIP/RTP implementation
-sdp-transform>=0.1.1     # SDP parsing/serialization
+# SIP and VoIP - PJSIP implementation
+pjproject==2.13.1      # The main PJSIP library
+python-pjsua2>=0.1.0   # Python bindings for PJSUA2
+dnspython>=2.4.2       # For DNS resolution
+sdp-transform>=0.1.1   # SDP parsing/serialization
 
 # Hardware integration
 pyserial>=3.5         # Serial communication
 pyusb>=1.2.1         # USB communication
 
 # System utilities
-psutil>=5.9.6             # System monitoring
+psutil>=5.9.6         # System monitoring
 
 # Security
 python-jose>=3.3.0    # JWT handling

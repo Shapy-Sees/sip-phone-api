@@ -1,5 +1,5 @@
-# src/Dockerfile
-# Single-stage Dockerfile for SIP Phone API using Ubuntu 22.04 with PJSIP
+# Path: src/Dockerfile
+# Single-stage Dockerfile for SIP Phone API using Ubuntu 22.04
 
 FROM ubuntu:22.04
 
@@ -53,10 +53,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libyaml-dev \
     libsqlite3-dev \
     libspeex-dev \
-    # Additional dependencies for PJSIP
-    libgsm1-dev \
-    libspeexdsp-dev \
-    libpulse-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -67,28 +63,17 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Upgrade pip and install wheel
 RUN pip install --upgrade pip setuptools wheel
 
-# Clone and build PJSIP from source for better control and debugging
-RUN git clone https://github.com/pjsip/pjproject.git /tmp/pjproject && \
-    cd /tmp/pjproject && \
-    ./configure --prefix=/usr --enable-shared --disable-sound \
-    --disable-video --disable-opencore-amr --disable-resample \
-    --disable-g711-codec --disable-l16-codec --disable-g722-codec \
-    --disable-g7221-codec --disable-gsm-codec --disable-ilbc-codec \
-    --disable-ipp --disable-ssl --disable-sdl \
-    --disable-ffmpeg --disable-v4l2 --disable-openh264 \
-    --disable-libyuv --disable-libwebrtc --enable-extra-warnings \
-    CFLAGS="-fPIC -O2 -DNDEBUG" && \
-    make dep && \
-    make && \
-    make install && \
-    ldconfig && \
-    cd /tmp/pjproject/pjsip-apps/src/python && \
-    python setup.py install && \
-    rm -rf /tmp/pjproject
+# First install sipsimple dependencies
+COPY requirements.sipsimple.txt .
+RUN pip install -r requirements.sipsimple.txt
 
-# Install requirements
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+# Install python-sipsimple from source
+RUN pip install --no-cache-dir --no-binary :all: python-sipsimple==3.3.0 2>&1 | tee /tmp/sipsimple_install.log || \
+    (echo "python-sipsimple installation failed. See /tmp/sipsimple_install.log for details" && exit 1)
+
+# Install other requirements
+COPY requirements.prod.txt .
+RUN pip install -r requirements.prod.txt
 
 # Set working directory
 WORKDIR /app

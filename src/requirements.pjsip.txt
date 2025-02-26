@@ -1,0 +1,7 @@
+# PJSIP dependencies
+# Core dependencies for PJSIP/PJSUA2
+pjproject==2.13.1  # The main PJSIP library
+python-pjsua2>=0.1.0  # Python bindings for PJSUA2
+
+# Additional dependencies that might be needed
+dnspython>=2.4.2  # For DNS resolution

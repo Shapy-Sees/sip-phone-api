@@ -116,7 +116,7 @@ class WebhookHandler:
         """
         # Base payload with common fields
         payload = {
-            "event_type": str(event.type),
+            "event_type": str(getattr(event, 'type', event.__class__.__name__)),
             "timestamp": datetime.utcnow().isoformat(),
             "event_id": event.event_id,
             "metadata": event.metadata

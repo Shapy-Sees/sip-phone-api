@@ -26,7 +26,8 @@ from ..events.types import (
     EventType,
     BaseEvent,
     PhoneEvent,
-    SystemEvent
+    SystemEvent,
+    StateEvent
 )
 from ..utils.logger import SIPLogger, log_function_call
 from ..utils.config import Config

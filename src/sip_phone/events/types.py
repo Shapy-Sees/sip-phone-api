@@ -138,6 +138,7 @@ __all__ = [
     "PhoneEvent",
     "WebSocketEvent",
     "WebhookEvent",
+    "StateEvent",
     "SystemEvent",
     "EventHandler",
     "AsyncEventHandler"

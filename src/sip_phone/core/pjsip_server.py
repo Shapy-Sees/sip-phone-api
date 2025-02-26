@@ -1,4 +1,4 @@
-# src/sip_phone/core/sip_server.py
+# src/sip_phone/core/pjsip_server.py
 """
 Core SIP server implementation for Smart Home Phone Integration using PJSIP/PJSUA2.
 Replaces the original SIPSimple implementation with PJSIP for better compatibility and reliability.

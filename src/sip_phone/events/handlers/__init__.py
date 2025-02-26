@@ -32,12 +32,12 @@ async def init_handlers(config: Config) -> None:
         event_dispatcher.register_handler(
             handler.handle_event,
             [
-                EventType.CALL_INITIATED,
-                EventType.CALL_CONNECTED,
+                EventType.CALL_STARTED,
                 EventType.CALL_ENDED,
                 EventType.CALL_FAILED,
-                EventType.DTMF_DETECTED,
-                EventType.STATE_CHANGED,
+                EventType.CALL_CONNECTING,
+                EventType.DTMF,
+                EventType.STATE_CHANGE,
                 EventType.SYSTEM_ERROR,
                 EventType.SYSTEM_WARNING
             ]

@@ -1,6 +1,6 @@
 # src/sip_phone/__main__.py
 """
-Main entry point for SIP Phone API using PJSIP/PJSUA2.
+Main entry point for SIP Phone API.
 Handles initialization of all components, configuration loading,
 and graceful shutdown. Provides comprehensive logging of startup sequence.
 """
@@ -11,8 +11,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# Import the PJSIP server implementation
-from .core.pjsip_server import SIPServer
+from .core.sip_server import SIPServer
 from .core.state_manager import StateManager
 from .utils.config import Config, ConfigurationError
 from .utils.logger import SIPLogger, LoggerConfig
@@ -73,7 +72,7 @@ async def main() -> None:
         
         # Get module logger
         log = logger.get_logger(__name__)
-        log.info("Starting SIP Phone API with PJSIP/PJSUA2",
+        log.info("Starting SIP Phone API",
                  config_path=str(config_path),
                  log_level=config.logging.level)
         
@@ -89,7 +88,6 @@ async def main() -> None:
         state_manager = StateManager(config)
         
         # Initialize servers
-        log.debug("Initializing PJSIP server")
         sip_server = SIPServer(event_dispatcher, state_manager)
         api_server = APIServer(sip_server)
         
@@ -111,7 +109,7 @@ async def main() -> None:
         log.info("Starting services")
         
         # Start SIP server
-        log.debug("Starting PJSIP server")
+        log.debug("Starting SIP server")
         await sip_server.start()
         
         # Start API server
