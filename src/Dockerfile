@@ -87,7 +87,7 @@ RUN git clone https://github.com/pjsip/pjproject.git /tmp/pjproject && \
     rm -rf /tmp/pjproject
 
 # Install requirements
-COPY requirements.txt .
+COPY src/requirements.txt .
 RUN pip install -r requirements.txt
 
 # Set working directory
